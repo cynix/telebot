@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -14,6 +15,8 @@ type Bot struct {
 	Messages  chan Message
 	Queries   chan Query
 	Callbacks chan Callback
+	stop      chan struct{}
+	wg        sync.WaitGroup
 }
 
 // NewBot does try to build a Bot with token `token`, which
@@ -33,12 +36,22 @@ func NewBot(token string) (*Bot, error) {
 // Listen periodically looks for updates and delivers new messages
 // to the subscription channel.
 func (b *Bot) Listen(subscription chan Message, timeout time.Duration) {
+	b.stop = make(chan struct{})
+	b.wg.Add(1)
 	go b.poll(subscription, nil, nil, timeout)
+}
+
+// Stop listening.
+func (b *Bot) Stop() {
+	close(b.stop)
+	b.wg.Wait()
 }
 
 // Start periodically polls messages and/or updates to corresponding channels
 // from the bot object.
 func (b *Bot) Start(timeout time.Duration) {
+	b.stop = make(chan struct{})
+	b.wg.Add(1)
 	b.poll(b.Messages, b.Queries, b.Callbacks, timeout)
 }
 
@@ -50,7 +63,16 @@ func (b *Bot) poll(
 ) {
 	var latestUpdate int64
 
+_stop:
 	for {
+		select {
+		case <-b.stop:
+			break _stop
+
+		default:
+			break
+		}
+
 		updates, err := getUpdates(b.Token,
 			latestUpdate+1,
 			int64(timeout/time.Second),
@@ -85,6 +107,7 @@ func (b *Bot) poll(
 		}
 	}
 
+	b.wg.Done()
 }
 
 // SendMessage sends a text message to recipient.
