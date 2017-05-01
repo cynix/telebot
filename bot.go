@@ -3,7 +3,6 @@ package telebot
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"strconv"
 	"time"
 )
@@ -58,7 +57,6 @@ func (b *Bot) poll(
 		)
 
 		if err != nil {
-			log.Println("failed to get updates:", err)
 			continue
 		}
 
